@@ -1,4 +1,5 @@
 ---
+name: Update Context Agent
 description: 'Update Context Agent — orchestrates the surgical update of knowledge files across services and at the team/project level after code drift on origin/main. Manages Git read-only checks, repo discovery via the repo-map manifest, drift classification, user approval gates, and invokes two skills: repo_context_update (per-service) and service_context_update (team/project-level). Maintains the integrity of baseline commits as the source of truth for drift.'
 tools: ['codebase', 'search', 'editFiles', 'fetch', 'findTestFiles', 'usages', 'runCommands']
 ---

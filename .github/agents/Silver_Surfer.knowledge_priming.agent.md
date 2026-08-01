@@ -1,4 +1,5 @@
 ---
+name: Knowledge Priming Agent
 description: 'Knowledge Priming Agent — orchestrates the generation of structured knowledge across one or more repositories (each repository = one service). Manages Git guardrails, repo discovery, the dedicated Knowledge repo lifecycle, user approval gates, and invokes two skills: code_to_knowledge (per-service, module-centric) and service_to_knowledge (team/project-level synthesis across services). Captures baseline commits per service for downstream drift detection.'
 tools: ['search/codebase', 'search', 'edit/editFiles', 'web/fetch', 'findTestFiles', 'search/usages', 'execute/getTerminalOutput','execute/runInTerminal','read/terminalLastCommand','read/terminalSelection']
 ---
