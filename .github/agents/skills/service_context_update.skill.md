@@ -53,9 +53,10 @@ If no service has a mismatch → return immediately with `SERVICE_UPDATE_SUMMARY
 ### Step 2 — Ingest Updated Per-Service Knowledge
 
 For each affected service, read:
-- `[knowledge-repo-path]/[Service_Name]_Knowledge/index.md` — pulls the new baseline, updated Module list, updated Tech Spec, Drift State block
+- `[knowledge-repo-path]/[Service_Name]_Knowledge/index.md` — pulls the new baseline, updated Modules table, updated Deployment & Infrastructure table (if present), updated Tech Spec, Drift State block
 - Updated module files at `[knowledge-repo-path]/[Service_Name]_Knowledge/modules/*.md`
 - Updated feature files at `[knowledge-repo-path]/[Service_Name]_Knowledge/features/*.md` (frontend)
+- Updated infra unit files at `[knowledge-repo-path]/[Service_Name]_Knowledge/infra/*.md` (Infrastructure facet)
 - Submodule files where applicable
 
 Do **not** re-scan source code at this stage. The per-service knowledge is the source of truth.
@@ -76,6 +77,7 @@ Also walk the per-service Drift State blocks of affected services:
 - If a service's `Modules Added` includes a module that participates in a cross-service feature → that feature is impacted
 - If a service's `Modules Deleted` removed something that was referenced in a cross-service feature → that feature is impacted (and may now be broken)
 - If a service's `Modules Renamed` changed a referenced module name → that feature needs link updates
+- **Infrastructure facet:** if a service's Drift State block includes infra-unit entries (added/resolved-from-D1/D2/D3-frozen), check whether that infra unit is referenced anywhere at the team/project level — a cross-service feature's `Linked Per-Service Files` pointing at `infra/[unit-name].md`, or the team/project `Service Interconnections` table naming a resource that unit provisions. If so, treat it the same as a module add/delete/rename: the referencing feature or interconnection row is impacted and needs a link/content refresh. Do not skip infra-unit entries just because they weren't a module.
 
 ### Step 5 — Classify Cross-Service Drift Per Feature
 
@@ -98,6 +100,7 @@ For each impacted cross-service feature:
 - Add new interconnections if the per-service updates introduced new cross-service handoffs (e.g., a new event publisher in Service A consumed by Service B)
 - Mark interconnections as REMOVE if the per-service updates eliminated a handoff
 - Update `Used In Features` column for any feature whose set of interconnections changed
+- **Infrastructure facet:** if an affected service's infra units changed (per Step 4), check whether the resource backing an existing interconnection (e.g., the queue/topic/gateway named in the Contract column) was renamed, removed, or re-provisioned in a way that changes the interconnection's mechanism. Update or REMOVE the row accordingly — do not leave an interconnection pointing at a resource an infra unit no longer provisions.
 
 **Architectural Flow narrative drift:**
 - If any of the following changed, the narrative needs updating:
@@ -113,7 +116,7 @@ For each impacted cross-service feature flagged D4 or D5, generate before/after 
 - Services Participating
 - End-to-End Flow → Cross-Service Sequence
 - Cross-Service Handoffs table
-- Linked Per-Service Files (especially for renames/new modules)
+- Linked Per-Service Files (especially for renames/new modules, and for infra units per Step 4 — Infrastructure facet)
 
 For the team/project `index.md`, generate before/after content for each affected section:
 - `Services in This Team/Project` table — refresh baseline commits for affected services
@@ -272,7 +275,7 @@ You have completed successfully when:
 - Every D4 finding has been resolved (changes applied or user-skipped) or recorded
 - Every D5 finding is returned as FROZEN without changes applied
 - Every approved feature file change has been applied verbatim
-- Service Interconnections table accurately reflects the current cross-service handoff topology
+- Service Interconnections table accurately reflects the current cross-service handoff topology, including any changes driven by infra-unit adds/deletes/renames
 - Tech Stack reflects the latest per-service Tech Specifications
 - Architectural Flow narrative has been refreshed if and only if narrative-level drift was detected
 - No unchanged content was touched
@@ -284,6 +287,7 @@ You have completed successfully when:
 - **Read per-service knowledge first.** Source code is only consulted if per-service knowledge has a gap that prevents synthesis.
 - **D5 means stop on that feature.** Do not attempt to reconcile cross-service major drift autonomously.
 - **No silent rewrites.** Every change goes through the review mode (Strict or Bulk).
-- **Honor renames.** If a per-service update renamed a module, find every reference in team/project-level files and update the link in the same change block, not as a separate hidden edit.
+- **Honor renames.** If a per-service update renamed a module or infra unit, find every reference in team/project-level files and update the link in the same change block, not as a separate hidden edit.
+- **Never skip infra-unit drift.** Treat infra-unit adds/deletes/renames in a service's Drift State block with the same rigor as module adds/deletes/renames — check for downstream references before assuming there's nothing to propagate.
 - **Stay scoped.** Only read per-service `[knowledge-repo-path]/[Service_Name]_Knowledge/` and write under `[knowledge-repo-path]/`.
 - **Read-only with git.** Never run any git write operations.

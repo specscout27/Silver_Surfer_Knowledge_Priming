@@ -14,7 +14,7 @@ All generated knowledge is written to a **dedicated Knowledge repository** — n
 
 | Skill | Scope | Source File | Approach |
 |---|---|---|---|
-| `code_to_knowledge` | Per-service (single repo + its modules/submodules) | `skills/code_to_knowledge.skill.md` | Module-centric for non-frontend; impact-based feature-centric for frontend |
+| `code_to_knowledge` | Per-service (single repo + its modules/submodules/infra units) | `skills/code_to_knowledge.skill.md` | Module-centric for Backend/Database; impact-based feature-centric for Frontend; unit-centric for Infrastructure (Terraform/Helm/CDK/K8s/etc.) — a repo may carry more than one facet at once |
 | `service_to_knowledge` | Team/Project-level (synthesis across all services in scope) | `skills/service_to_knowledge.skill.md` | Feature-centric — one file per cross-service feature |
 
 When invoking a skill, read its `.skill.md` file in full and follow its instructions exactly. Treat the skill's instructions as authoritative for the work it performs.
@@ -269,10 +269,10 @@ Wait for the user to either clear the path (then proceed) or confirm skip (then 
 Read `skills/code_to_knowledge.skill.md` in full. Apply its instructions to the current repo.
 
 The skill performs:
-- Layer type detection (Frontend / Backend / Terraform / Cloud / Database)
-- Module discovery (real submodules first; pseudo-modules if flat)
-- Lightweight tech spec capture
-- Returns a Discovery Report to you
+- Layer facet detection (Frontend / Backend / Database / Infrastructure) — a repo may have more than one facet at once (e.g., a service repo with its own Terraform alongside application code), and every detected facet is kept, never collapsed to one
+- Module discovery for Backend/Database facets, submodule discovery for Frontend, and infra unit discovery for the Infrastructure facet (real submodules/workspaces first; pseudo-units if flat)
+- Lightweight tech spec capture, including IaC tool/cloud provider/orchestrator when an Infrastructure facet is present
+- Returns a Discovery Report to you, with one sub-block per detected facet
 
 Pass these inputs to the skill:
 - Repo path (source code location, from `repo-map.md`)
@@ -280,20 +280,20 @@ Pass these inputs to the skill:
 - Baseline commit (captured in Step 4D)
 - Service name
 
-#### 6C — User Approval Gate (Modules)
+#### 6C — User Approval Gate (Modules / Infra Units)
 
-Surface the skill's Discovery Report to the user. Ask:
+Surface the skill's Discovery Report to the user, including every detected facet. Ask:
 
-> "I've identified the following modules in [Service Name]. Please review and confirm, or specify corrections."
+> "I've identified the following in [Service Name]: [modules / features / infra units, per detected facet]. Please review and confirm, or specify corrections — including removing any facet that was falsely detected (e.g., a handful of stray YAML files that aren't actually infra)."
 
 Wait for explicit user confirmation. If corrections are provided, pass them back to the skill and re-output the Discovery Report.
 
 #### 6D — Invoke Skill 1: Generation
 
-Once modules are approved, continue with the skill. The skill performs:
+Once modules (and infra units, where applicable) are approved, continue with the skill. The skill performs:
 - Business feature discovery within each module
-- Module file generation (or feature files for frontend)
-- Service-level index file generation with baseline commit, layer type, tech spec, modules list
+- Module file generation (or feature files for frontend, or infra unit files for the Infrastructure facet)
+- Service-level index file generation with baseline commit, layer facet(s), tech spec, and a modules/features/infra-units list per facet
 
 The skill writes files to `[knowledge-repo-path]/[Service_Name]_Knowledge/`.
 
@@ -319,7 +319,7 @@ Read `skills/service_to_knowledge.skill.md` in full. Apply its instructions.
 
 Pass these inputs to the skill:
 - Team/Project name
-- List of all services with their source repo paths, layer types, and baseline commits
+- List of all services with their source repo paths, layer facet(s) (a service may have more than one), and baseline commits
 - Knowledge repo path: `[knowledge-repo-path]/`
 
 The skill performs:
@@ -345,7 +345,7 @@ Wait for user approval before finalizing. If rejected, ask the user for guidance
 
 Silently verify:
 - [ ] Every service has `[knowledge-repo-path]/[Service_Name]_Knowledge/index.md` with the correct baseline commit
-- [ ] Every service has its expected module or feature files
+- [ ] Every service has its expected module, feature, and/or infra unit files — one subtree per facet detected, none silently dropped
 - [ ] `[knowledge-repo-path]/index.md` exists with all baseline commits, tech stack, and architectural flow
 - [ ] Every cross-service feature has its file at `[knowledge-repo-path]/features/`
 - [ ] `[knowledge-repo-path]/repo-map.md` has a row for every service in scope

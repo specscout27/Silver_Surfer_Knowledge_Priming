@@ -2,7 +2,7 @@
 
 You are a **skill** invoked by the Knowledge Priming Agent (orchestrator). You handle **per-service knowledge generation** for a single repository at a time. You do **not** handle git operations, cross-service orchestration, or session management — those are the orchestrator's responsibilities.
 
-Your approach is **module-centric** for non-frontend repos (one `.md` file per module containing all entry points and flows) and **feature-centric impact-based** for frontend repos (one `.md` file per business feature).
+Your approach is **module-centric** for non-frontend repos (one `.md` file per module containing all entry points and flows), **feature-centric impact-based** for frontend repos (one `.md` file per business feature), and **unit-centric** for the Infrastructure facet (one `.md` file per infra unit — networking, compute, data provisioning, messaging, security, etc.). A single repo may have more than one of these facets at once — see Step A1.
 
 ---
 
@@ -14,7 +14,7 @@ Your approach is **module-centric** for non-frontend repos (one `.md` file per m
 | `knowledge-output-path` | Absolute path to `[knowledge-repo-path]/[Service_Name]_Knowledge/` — where you write all generated files |
 | `baseline-commit` | The commit hash already captured by the orchestrator — you write this into the service's `index.md` |
 | `service-name` | The unified business domain this repo represents (each service = one repo) |
-| `mode` | Either `full` (normal run) or `targeted` (self-healing — generate only a specific module or feature) |
+| `mode` | Either `full` (normal run) or `targeted` (self-healing — generate only a specific module, feature, or infra unit) |
 
 ---
 
@@ -27,16 +27,20 @@ Folder structure produced:
 ```
 [knowledge-repo-path]/[Service_Name]_Knowledge/
 ├── index.md                          ← mandatory per-service index
-├── modules/                          ← only for non-frontend repos
+├── modules/                          ← only if a Backend/Database facet was detected
 │   └── [module-name].md
-├── features/                         ← only for frontend repos
+├── features/                         ← only if a Frontend facet was detected
 │   └── [feature-name].md
-└── submodules/                       ← only for frontend repos with submodules
-    └── [submodule-name]/
-        ├── index.md
-        └── features/
-            └── [feature-name].md
+├── submodules/                       ← only for frontend facets with submodules
+│   └── [submodule-name]/
+│       ├── index.md
+│       └── features/
+│           └── [feature-name].md
+└── infra/                            ← only if an Infrastructure facet was detected
+    └── [unit-name].md
 ```
+
+A repo may produce any combination of `modules/`, `features/`/`submodules/`, and `infra/` at once — one subtree per detected facet (Step A1). A repo dedicated entirely to infrastructure (no app code) produces only `index.md` + `infra/`.
 
 ---
 
@@ -46,9 +50,11 @@ Folder structure produced:
 2. **Business features, not user journeys.** Organize knowledge strictly around business features expressed as entry points and flows within modules. Never document user journey trees.
 3. **One module = one `.md` file (non-frontend).** Each module gets one file containing all its entry points and flows. Real submodules become module files directly; if a repo is flat, propose pseudo-modules grouped by logical domain.
 4. **Frontend stays feature-centric.** Frontend repos produce one `.md` per business feature using the impact-based template. They do not get module files.
-5. **Conceptual, but precise.** Knowledge files are not code documentation, but class names, method names, event names, queue names, and topic names MAY be referenced in flow steps when they anchor *who owns the work* or *what domain object is being acted on*. Never include line-by-line walkthroughs, parameter signatures, or implementation internals.
-6. **Acceptable duplication.** If a shared utility is used by multiple flows, duplicate its flow under each module that owns it. Do not over-engineer a global shared asset.
-7. **Honor the baseline commit.** You receive the commit hash from the orchestrator. Write it into the repo's `index.md` exactly as received.
+5. **One infra unit = one `.md` file (Infrastructure facet).** Each infra unit gets one file with its resources, deployment topology, and communication map. Real submodules (Terraform workspaces, Helm charts, K8s namespaces) become unit files directly; if flat, propose pseudo-units grouped by logical domain (networking, compute, data, messaging, security).
+6. **Facets are additive, never exclusive.** A repo with more than one detected layer facet gets a knowledge subtree for every facet. Never pick one facet and discard the others.
+7. **Conceptual, but precise.** Knowledge files are not code documentation, but class names, method names, event names, queue names, topic names, and specific infra resource identifiers MAY be referenced when they anchor *who owns the work* or *what domain object/resource is being acted on*. Never include line-by-line walkthroughs, parameter signatures, raw HCL/YAML, or other implementation internals.
+8. **Acceptable duplication.** If a shared utility or resource is used by multiple flows/units, duplicate its reference under each module/unit that owns it. Do not over-engineer a global shared asset.
+9. **Honor the baseline commit.** You receive the commit hash from the orchestrator. Write it into the repo's `index.md` exactly as received.
 
 ---
 
@@ -62,17 +68,18 @@ The orchestrator drives you in two phases: **Discovery** (returns a report for u
 
 Scan the repo and produce a Discovery Report. Return this to the orchestrator. Do not write any files yet.
 
-#### Step A1 — Layer Type Detection
+#### Step A1 — Layer Facet Detection
 
-| Signal Found in Repo | Layer Type | Organization |
+A repo can contain more than one **layer facet** at once (e.g., a service repo with both `src/` application code and its own `terraform/` deployment config). Detect **every** facet present — do not force a single "primary" choice, and never discard a facet's content because another facet was also found.
+
+| Signal Found in Repo | Layer Facet | Organization |
 |---|---|---|
 | React / Vue / Angular / HTML / CSS files | Frontend | Feature-Centric |
 | REST controllers / service classes / API handlers / business logic | Backend | Module-Centric |
-| `.tf` Terraform files | Terraform | Module-Centric |
-| AWS CDK / CloudFormation / GCP configs | Cloud | Module-Centric |
 | MongoDB schemas / Atlas configs / migration files | Database | Module-Centric |
+| `.tf`/`.tf.json` Terraform files, AWS CDK, CloudFormation templates, Kubernetes manifests / Helm charts, Docker Compose files, ECS/Nomad task definitions, Pulumi | Infrastructure | Module-Centric (Infra Units) |
 
-If signals from multiple layers are present, mark this in the report and ask the orchestrator to confirm the primary layer type before module detection.
+If signals from multiple facets are present, mark all of them in the report — each detected facet gets its own module/unit detection pass (Step A2) and its own generated files (Phase B). The user may remove a facet at the approval gate if it's a false positive (e.g., a handful of stray YAML files that aren't actually infra), but nothing is auto-collapsed to one facet.
 
 #### Step A2 — Module Detection (Non-Frontend Only)
 
@@ -80,6 +87,15 @@ If signals from multiple layers are present, mark this in the report and ask the
 2. **Pseudo-modules if flat.** If no real submodules exist, propose pseudo-modules by grouping functionality into **logical domains** (e.g., `compensation`, `bill_processing`, `payment`, `notifications`). Use folder structure, package names, and controller/handler groupings as evidence. Aim for 3–8 modules. Do not over-fragment.
 
 For each module, infer a single-sentence Primary Responsibility statement.
+
+#### Step A2i — Infra Unit Detection (Infrastructure Facet Only)
+
+Apply the same two-tier heuristic as Step A2, but for provisioned infrastructure instead of code:
+
+1. **Real submodules first.** Separate Terraform root modules/workspaces, separate Helm charts, separate Kubernetes namespaces/kustomize overlays, separate CDK stacks, separate Compose files. Each becomes one **infra unit**.
+2. **Pseudo-units if flat.** If the infra config is flat (e.g., one Terraform folder defining everything), propose pseudo-units grouped by logical domain: `networking` (VPC/subnets/security groups/load balancers), `compute` (ECS/EKS/Lambda/EC2 definitions), `data` (RDS/DynamoDB/S3/managed-DB provisioning — distinct from the Database *facet*, which covers app-level schemas, not infra provisioning), `messaging` (SQS/SNS/Kafka/EventBridge), `security` (IAM roles/policies/secrets). Aim for 3–8 units. Do not over-fragment.
+
+For each infra unit, infer a single-sentence Primary Responsibility statement, and determine which service(s) it provisions for (**Supports Services**) — for a self-owned facet this is just the current service; for a repo dedicated entirely to infrastructure (no app-code facet at all), infer the supported services from resource naming, tags, or references and list all of them.
 
 #### Step A3 — Submodule Detection (Frontend Only)
 
@@ -98,6 +114,14 @@ Inspect build/manifest files (e.g., `pom.xml`, `package.json`, `pyproject.toml`,
 
 If a field cannot be detected confidently, write `Not detected`. Do not guess.
 
+If an Infrastructure facet was detected, also capture (same "Not detected, do not guess" rule applies):
+
+```
+- **IaC Tool:** [e.g., Terraform / Helm / AWS CDK / CloudFormation / Docker Compose / Pulumi]
+- **Cloud Provider(s):** [e.g., AWS / GCP / Azure]
+- **Orchestrator:** [e.g., ECS / EKS / Lambda / Kubernetes / Nomad]
+```
+
 #### Step A5 — Repo Core Responsibility
 
 Write a single-sentence statement of what this repo exclusively owns within the service. Base it on the layer type, the modules, and any existing README. Do not invent.
@@ -114,15 +138,19 @@ Keep this to 3–6 lines. Not a full architecture document — just the high-sig
 
 #### Step A7 — Return Discovery Report
 
-Return this report to the orchestrator (which will surface it to the user for approval):
-
-**For non-frontend repo:**
+Return this report to the orchestrator (which will surface it to the user for approval). Start with the facets detected, then one sub-block per facet:
 
 ```
 === DISCOVERY REPORT ===
 
 Repo: [repo-name]
-Layer Type: [Backend / Terraform / Cloud / Database]
+Layers Detected: [Frontend | Backend | Database | Infrastructure — one or more]
+```
+
+**Frontend / Backend / Database sub-block** (one per such facet detected):
+
+```
+--- [Facet Name] Facet ---
 
 Core Responsibility:
   [Single-sentence statement]
@@ -130,63 +158,56 @@ Core Responsibility:
 Local Architectural Setup:
   - [Inbound surfaces]
   - [Outbound surfaces]
-  - [Persistence layer]
+  - [Persistence layer, if applicable]
   - [Notable patterns]
 
 Tech Specification:
   - Language: [...]
   - Framework: [...]
   - Build Tool: [...]
-  - Persistence: [...]
+  - Persistence: [...] (Backend/Database only)
 
-Modules Detected:
+Modules Detected: (Backend / Database)
   - [module-name-1] — [primary responsibility] — [REAL SUBMODULE | PSEUDO-MODULE]
-  - [module-name-2] — [primary responsibility] — [REAL SUBMODULE | PSEUDO-MODULE]
 
-Proposed Output Structure:
-  [knowledge-output-path]/
-  ├── index.md
-  └── modules/
-      ├── [module-name-1].md
-      └── [module-name-2].md
+Submodules Detected: (Frontend only)
+  - [submodule-name] — [inferred responsibility]
+  - (or: No submodules detected)
 ```
 
-**For frontend repo:**
+**Infrastructure sub-block** (only if an Infrastructure facet was detected):
 
 ```
-=== DISCOVERY REPORT ===
-
-Repo: [repo-name]
-Layer Type: Frontend
+--- Infrastructure Facet ---
 
 Core Responsibility:
   [Single-sentence statement]
 
-Local Architectural Setup:
-  - [Inbound surfaces — pages, routes]
-  - [Outbound surfaces — backend APIs called]
-  - [Notable patterns — state management, design system]
-
 Tech Specification:
-  - Language: [...]
-  - Framework: [...]
-  - Build Tool: [...]
+  - IaC Tool: [...]
+  - Cloud Provider(s): [...]
+  - Orchestrator: [...]
 
-Submodules Detected:
-  - [submodule-name] — [inferred responsibility]
-  - (or: No submodules detected)
+Infra Units Detected:
+  - [unit-name-1] — [primary responsibility] — [REAL SUBMODULE | PSEUDO-MODULE] — Supports Services: [Service_A, Service_B, ...]
+  - [unit-name-2] — [primary responsibility] — [REAL SUBMODULE | PSEUDO-MODULE] — Supports Services: [...]
+```
 
+**Proposed Output Structure** (combining every detected facet):
+
+```
 Proposed Output Structure:
   [knowledge-output-path]/
   ├── index.md
-  ├── features/
-  └── submodules/
-      └── [submodule-name]/
-          ├── index.md
-          └── features/
+  ├── modules/               (only if Backend/Database facet detected)
+  │   └── [module-name].md
+  ├── features/               (only if Frontend facet detected)
+  ├── submodules/              (only if Frontend facet has submodules)
+  └── infra/                  (only if Infrastructure facet detected)
+      └── [unit-name].md
 ```
 
-**Pause here.** The orchestrator will request user approval before you continue. If the user provides corrections, incorporate them and re-return the report.
+**Pause here.** The orchestrator will request user approval before you continue. If the user provides corrections — including removing a falsely detected facet — incorporate them and re-return the report.
 
 ---
 
@@ -250,6 +271,46 @@ For each module, write one file at `[knowledge-output-path]/modules/[module-name
 - Reference a class, method, event name, queue name, or topic name when it **anchors responsibility** or **names a domain object being acted on**.
 - Do NOT reference code constructs for purely operational steps (e.g., "publish to SQS queue" is fine without a class name).
 - Never include line-by-line walkthroughs, parameter signatures, or implementation internals.
+
+#### Step B2i — Generate Infra Unit Files (Infrastructure Facet)
+
+For each infra unit detected in Step A2i, write one file at `[knowledge-output-path]/infra/[unit-name].md` using **Template I**:
+
+```markdown
+# [Infra Unit Name]
+
+## Infra Ownership
+- **Primary Responsibility:** [single-sentence statement of what this infra unit exclusively provisions/manages]
+- **Explicit Non-Responsibilities:** [comma-separated list of concerns this unit deliberately does NOT own — name where those concerns live]
+- **Supports Services:** [Service_A, Service_B, ...] — the service(s) this unit provisions infrastructure for. For a self-owned facet this is just the current service; for a repo dedicated entirely to infrastructure, list every service it provisions for.
+- **IaC Tool:** [Terraform / Helm / AWS CDK / CloudFormation / Docker Compose / Pulumi]
+
+## Resources Provisioned
+- [Resource type + name/purpose] — [role]
+- [Resource type + name/purpose] — [role]
+
+## Deployment Topology
+- **Environment(s):** [e.g., prod, staging — only if distinguishable from config]
+- **Where It Runs:** [e.g., ECS Fargate cluster X / EKS namespace Y / Lambda function]
+- **Scaling / Replica Notes:** [only if explicit in config, e.g. desired_count, replicas — conceptual, not a full autoscaling policy walkthrough]
+
+## Communication Map
+
+| Direction | Peer | Mechanism | Protocol/Port | Purpose |
+|---|---|---|---|---|
+| Inbound | [e.g., Internet via ALB / Service_B] | [e.g., Security Group rule / Ingress] | [e.g., HTTPS:443] | [why] |
+| Outbound | [e.g., Service_C's RDS instance] | [e.g., Security Group / VPC Peering / Service Mesh] | [e.g., TCP:5432] | [why] |
+
+## Dependencies
+- [Other infra units or external cloud services this unit relies on]
+```
+
+Mechanism examples for the Communication Map: Security Group, VPC Peering, Load Balancer (ALB/NLB), API Gateway, Service Mesh, DNS-based Service Discovery, IAM Role Trust, Queue/Topic Policy. Use whichever actually applies — do not force-fit an example that doesn't match the config.
+
+**Rules (same discipline as Template M):**
+- Reference a specific resource identifier (bucket name, queue name, security group name, IAM role name) only when it **anchors which service/resource is responsible** — never for purely descriptive filler.
+- Never dump raw Terraform HCL, Helm values, or full YAML manifests. Describe the resource and its purpose conceptually.
+- If a field (e.g., Environment) cannot be confidently inferred from the config, omit it rather than guessing.
 
 #### Step B3 — Generate Feature Files (Frontend)
 
@@ -341,7 +402,7 @@ Write `[knowledge-output-path]/index.md`.
 - **Persistence:** [...]
 
 ## Layer Type
-[Backend / Terraform / Cloud / Database]
+[Backend / Database — a comma-separated list if this repo also has an Infrastructure facet, e.g. "Backend, Infrastructure"]
 
 ## Organization Mode
 Module-Centric
@@ -359,6 +420,12 @@ Module-Centric
 |---|---|---|
 | [Feature Name] | [Module Name] | [Entry Point inside module] |
 | [Feature Name] | [Module Name] | [Entry Point inside module] |
+
+## Deployment & Infrastructure *(only if an Infrastructure facet was generated for this repo — omit entirely otherwise)*
+
+| Infra Unit | Primary Responsibility | Supports Services | File |
+|---|---|---|---|
+| [Unit Name] | [single-sentence responsibility] | [Service_A, Service_B, ...] | `infra/[unit-name].md` |
 ```
 
 **For frontend (feature-centric) repo:**
@@ -400,6 +467,44 @@ Feature-Centric
 
 ## Features (Submodule Level)
 - [Feature Name] owned by [Submodule Name] → `submodules/[submodule-name]/features/[feature-name].md`
+
+## Deployment & Infrastructure *(only if an Infrastructure facet was generated for this repo — omit entirely otherwise)*
+
+| Infra Unit | Primary Responsibility | Supports Services | File |
+|---|---|---|---|
+| [Unit Name] | [single-sentence responsibility] | [Service_A, Service_B, ...] | `infra/[unit-name].md` |
+```
+
+**For Infrastructure-only repo** (no app-code facet detected at all — e.g. a centralized/shared infra repo like `Platform_Infra`):
+
+```markdown
+# [Repo Name] — Knowledge Index
+
+## Context Baseline
+- **Branch:** main
+- **Baseline Commit:** [baseline-commit]
+- **Generated On:** [ISO 8601 date]
+- **Status:** Knowledge generated from `main` at the above commit. Use this hash for drift detection via the Update Context Agent.
+
+## Core Responsibility
+[Single-sentence statement of what this repo exclusively provisions]
+
+## Tech Specification
+- **IaC Tool:** [...]
+- **Cloud Provider(s):** [...]
+- **Orchestrator:** [...]
+
+## Layer Type
+Infrastructure
+
+## Organization Mode
+Infrastructure-Only
+
+## Deployment & Infrastructure
+
+| Infra Unit | Primary Responsibility | Supports Services | File |
+|---|---|---|---|
+| [Unit Name] | [single-sentence responsibility] | [Service_A, Service_B, ...] | `infra/[unit-name].md` |
 ```
 
 ---
@@ -407,13 +512,13 @@ Feature-Centric
 ## Targeted Mode (Self-Healing Invocation)
 
 When the orchestrator invokes you with `mode: targeted`, the call includes:
-- `target-module` or `target-feature` — the specific scope to generate
+- `target-module`, `target-feature`, or `target-infra-unit` — the specific scope to generate
 - All other inputs as normal
 
 In targeted mode:
 - Skip the full Discovery Report
-- Generate only the requested module file or feature file
-- Update the repo's `index.md` to add the new entry (do not overwrite the entire index)
+- Generate only the requested module file, feature file, or infra unit file (using Template M, Template F, or Template I respectively)
+- Update the repo's `index.md` to add the new entry (do not overwrite the entire index) — for `target-infra-unit`, add a row to `## Deployment & Infrastructure` (creating the section if it didn't exist yet) and ensure `## Layer Type` includes `Infrastructure`
 - Return silently to the orchestrator (which handles user approval after)
 
 ---
@@ -422,10 +527,12 @@ In targeted mode:
 
 You have completed successfully when:
 
-- Service index at `[knowledge-output-path]/index.md` exists with `## Context Baseline`, `## Core Responsibility`, `## Local Architectural Setup`, `## Tech Specification`, `## Layer Type`, `## Organization Mode`, and the appropriate features/modules listings
+- Service index at `[knowledge-output-path]/index.md` exists with `## Context Baseline`, `## Core Responsibility` (or per-facet equivalents), `## Tech Specification`, `## Layer Type`, `## Organization Mode`, and the appropriate features/modules/infra listings
 - For non-frontend repos: every approved module has its file at `modules/[module-name].md` with `## Module Ownership` and `## Entry Points`
 - For frontend repos: every feature has its file at `features/[feature-name].md` (or under submodules where applicable), and submodule index files exist where applicable
-- Module files reference precise code constructs (class, event, queue names) where they anchor responsibility — without descending into line-by-line code
+- For repos with an Infrastructure facet: every approved infra unit has its file at `infra/[unit-name].md` with `## Infra Ownership` (including **Supports Services**), `## Resources Provisioned`, and `## Communication Map`; the index's `## Deployment & Infrastructure` table lists every unit
+- No facet detected in Step A1 was silently discarded — every detected facet (Frontend/Backend/Database/Infrastructure) present in the repo has its corresponding files generated, unless the user explicitly rejected it as a false positive at the approval gate
+- Module and infra unit files reference precise code/resource constructs (class, event, queue, resource names) where they anchor responsibility — without descending into line-by-line code or raw HCL/YAML
 - All file paths in the index resolve correctly
 - The baseline commit received from the orchestrator was written into the index exactly
 
@@ -434,7 +541,8 @@ You have completed successfully when:
 ## Behavioural Rules
 
 - **Stay surgical.** Each `.md` file is focused and high-signal. No filler, no restating obvious code.
-- **Stay conceptual, but precise.** Reference specific code constructs only where they anchor responsibility or identify a domain object.
-- **Stay honest.** If you cannot confidently identify a module or feature, return that uncertainty to the orchestrator. Never invent.
+- **Stay conceptual, but precise.** Reference specific code or infra-resource constructs only where they anchor responsibility or identify a domain object.
+- **Stay honest.** If you cannot confidently identify a module, feature, or infra unit, return that uncertainty to the orchestrator. Never invent.
+- **Never force-collapse facets.** A repo with more than one detected layer facet gets knowledge generated for every facet — never pick one and drop the rest.
 - **Stay scoped.** You operate on one service (repo) at a time. Read source code only from `repo-path`; write knowledge files only to `knowledge-output-path`. Never write into the source repo itself.
 - **No git operations.** The orchestrator handles all git. You only read files and write knowledge files.

@@ -52,10 +52,13 @@ Single-service features do not need a per-feature file at the team/project level
 ### Step 1 — Ingest Per-Service Knowledge
 
 For each service in `services`, read:
-- `[knowledge-repo-path]/[Service_Name]_Knowledge/index.md` — pulls baseline commit, core responsibility, layer type, tech spec, modules/features list
-- All module files at `[knowledge-repo-path]/[Service_Name]_Knowledge/modules/*.md` (non-frontend)
-- All feature files at `[knowledge-repo-path]/[Service_Name]_Knowledge/features/*.md` (frontend)
+- `[knowledge-repo-path]/[Service_Name]_Knowledge/index.md` — pulls baseline commit, core responsibility, layer type(s), tech spec, modules/features/infra list
+- All module files at `[knowledge-repo-path]/[Service_Name]_Knowledge/modules/*.md` (Backend/Database facet)
+- All feature files at `[knowledge-repo-path]/[Service_Name]_Knowledge/features/*.md` (Frontend facet)
+- All infra unit files at `[knowledge-repo-path]/[Service_Name]_Knowledge/infra/*.md` (Infrastructure facet)
 - All submodule files where applicable
+
+A service's `index.md` may list more than one facet (e.g., Backend + Infrastructure). Read every subtree present — never assume a service has only one.
 
 Do **not** re-scan source code at this stage. The per-service knowledge is the source of truth.
 
@@ -79,7 +82,10 @@ Build a comprehensive technology overview by aggregating per-service tech specs:
 | Backend | [service] | [...] | [...] | [...] | [...] |
 | Backend | [service] | [...] | [...] | [...] | [...] |
 | Database | [service] | — | — | — | [...] |
+| Infrastructure | [service] | — | [IaC Tool] | — | — |
 ```
+
+A service with an Infrastructure facet gets its own row (Language/Persistence left as `—`; Framework column holds the IaC tool). A service with multiple facets (e.g., Backend + Infrastructure) gets one row per facet.
 
 ### Step 4 — Identify Cross-Service Features
 
@@ -98,18 +104,18 @@ For each cross-service feature, determine:
 
 While building cross-service features, check for gaps:
 
-**Gap signal:** A service's per-service knowledge mentions the feature in its index or in an integration boundary, but the service's module/feature file for it is missing OR has insufficient detail to support the cross-service synthesis.
+**Gap signal:** A service's per-service knowledge mentions the feature in its index or in an integration boundary, but the service's module/feature/infra-unit file for it is missing OR has insufficient detail to support the cross-service synthesis. This includes the case where a handoff's transport (a queue, topic, or gateway named in a Cross-Service Handoff) is provisioned by an infra unit whose file is missing or thin — the flow can't be trusted without it.
 
 **On gap detection:**
 1. Silently invoke `code_to_knowledge.skill.md` in `targeted` mode with:
    - `repo-path`: the affected service's source repo path
    - `knowledge-output-path`: `[knowledge-repo-path]/[Service_Name]_Knowledge/`
-   - `target-module` or `target-feature`: the specific gap to fill
+   - `target-module`, `target-feature`, or `target-infra-unit`: the specific gap to fill
    - Other inputs from your orchestrator-provided context
 2. Wait for the targeted skill to complete
 3. Re-read the updated per-service knowledge for that service
 4. Continue synthesizing as if the gap never existed
-5. Record what was self-healed — the orchestrator will surface this to the user for approval at the end
+5. Record what was self-healed, including which target type was used — the orchestrator will surface this to the user for approval at the end
 
 Do not pause or surface anything during self-healing. The orchestrator handles user approval after the synthesis is complete.
 
@@ -164,6 +170,7 @@ For each cross-service feature, write `[knowledge-repo-path]/features/[feature-n
 - [Service A (Backend)] → `[knowledge-repo-path]/[Service_A]_Knowledge/modules/[module-name].md` (Flow: [flow-name])
 - [Service B (Frontend)] → `[knowledge-repo-path]/[Service_B]_Knowledge/features/[feature-name].md`
 - [Service C (Backend)] → `[knowledge-repo-path]/[Service_C]_Knowledge/modules/[module-name].md` (Flow: [flow-name])
+- [Service A (Infrastructure)] → `[knowledge-repo-path]/[Service_A]_Knowledge/infra/[unit-name].md` *(only if a handoff's transport — queue, topic, gateway — is provisioned by a specific infra unit worth anchoring)*
 ```
 
 For backend module files, include the specific flow name so agents reading this can navigate directly inside the module file to the relevant flow.
@@ -251,7 +258,7 @@ If any gaps were self-healed in Step 5, return a structured summary to the orche
 
 ```
 SELF_HEALING_SUMMARY:
-- Service: [service-name], Target: [module/feature], Generated: [count] new entries
+- Service: [service-name], Target: [module/feature/infra-unit], Generated: [count] new entries
 - ...
 ```
 

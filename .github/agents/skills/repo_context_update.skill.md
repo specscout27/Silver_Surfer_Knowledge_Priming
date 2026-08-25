@@ -45,6 +45,7 @@ The folder structure is the same one Knowledge Priming created. You modify files
 Read `[knowledge-output-path]/index.md` and extract:
 - `Baseline Commit` (should match `recorded-baseline` input — verify)
 - Existing module list under `## Modules` table (these are the known modules)
+- Existing infra unit list under `## Deployment & Infrastructure` table, if present (only exists when `Layer Type` includes `Infrastructure`)
 - Tech Specification block
 - Layer Type
 
@@ -150,7 +151,19 @@ Read the repo's `## Tech Specification` block from `index.md` to identify the st
 | `pom.xml`, `build.gradle`, `package.json`, `requirements.txt`, `go.mod`, `Gemfile`, `*.csproj` | Build / Dependency |
 | `Dockerfile`, `docker-compose.yml`, `*.tf`, infra `*.yaml` | Infra / Runtime |
 
-If any Build/Dependency or Infra/Runtime file appears in the diff, flag it as a potential **Tech Specification update**.
+If any Build/Dependency file appears in the diff, flag it as a potential **Tech Specification update**.
+
+**Infrastructure Facet (only if `index.md`'s `Layer Type` includes `Infrastructure`):**
+
+| Pattern | Category |
+|---|---|
+| `*.tf`, `*.tf.json`, Terraform `.tfvars` | Infra / Terraform |
+| `**/helm/**`, `Chart.yaml`, `values*.yaml` | Infra / Helm |
+| `**/k8s/**`, `**/kustomize/**`, YAML files with a top-level `kind:` | Infra / Kubernetes |
+| `docker-compose*.yml`, ECS/Nomad task definitions | Infra / Compose |
+| AWS CDK (`cdk.json`, `**/*-stack.ts`), CloudFormation templates, Pulumi (`Pulumi.yaml`) | Infra / IaC |
+
+If any of these appear in the diff and the repo has an Infrastructure facet, do **not** only flag a Tech Specification update — route them into Step 6i (Infra Unit detection) below. If the repo has no Infrastructure facet, treat matches as ordinary Infra/Runtime files per the table above (Tech Spec flag only).
 
 ### Step 6 — Detect New Modules
 
@@ -164,7 +177,19 @@ Walk each changed file and determine its module ownership:
 
 Record each finding. Do not act on them yet — they will be surfaced to the user for approval.
 
-### Step 7 — Classify Drift Per Module
+### Step 6i — Detect New, Deleted, or Renamed Infra Units (Infrastructure Facet Only)
+
+Only run this step if `index.md`'s `Layer Type` includes `Infrastructure`. Apply the same two-tier logic as Step 6, but to files routed here from the Infrastructure Facet pattern table in Step 5:
+
+- Map each changed infra file back to its likely infra unit based on folder/workspace structure (e.g., a file under `terraform/networking/` likely belongs to a `networking` infra unit)
+- Check if that unit exists in the repo's `## Deployment & Infrastructure` table from `index.md`
+- **If a file maps to no existing infra unit** → potential new infra unit finding
+- **If an infra unit's directory is entirely removed** → potential infra unit deletion
+- **If an infra unit's directory was renamed (same content moved)** → potential infra unit rename
+
+Record each finding with the same rigor as module findings in Step 6 — they are surfaced to the user for approval, never applied silently.
+
+### Step 7 — Classify Drift Per Module (and Per Infra Unit)
 
 For each existing module impacted by file changes:
 
@@ -176,6 +201,17 @@ For each existing module impacted by file changes:
 | Module overlap, ownership violated (e.g., this module's code now appears under another module's directory or vice versa) | D3 |
 
 For new modules detected in Step 6 → flag as D2 (Structural Drift — new module added).
+
+**Infrastructure facet only:** apply the equivalent table to each existing infra unit impacted by file changes, reading "module" as "infra unit" and its directories as the unit's IaC files:
+
+| Signal | Drift Level |
+|---|---|
+| No files changed under this infra unit's directories | D0 |
+| Additive changes only (new resource added, new variable, expanded tags) | D1 |
+| Topology rewritten, new resource type introduced, ownership area altered | D2 |
+| Infra unit overlap, ownership violated (e.g., this unit's resources now appear under another unit's directory or vice versa) | D3 |
+
+For new infra units detected in Step 6i → flag as D2 (Structural Drift — new infra unit added).
 
 ### Step 8 — Generate Proposed Changes
 
@@ -194,6 +230,19 @@ For new modules: prepare a proposed `modules/[new-module-name].md` file using th
 For module deletion: prepare a proposal to delete `modules/[old-module-name].md` and remove its row from the index.
 
 For module rename: prepare a proposal to rename the file and update all index references.
+
+**Infrastructure facet only:** for each infra unit flagged D1 or D2, generate before/after content the same way:
+
+1. Read the current `infra/[unit-name].md` file
+2. Identify which sections are affected (Infra Ownership, Resources Provisioned, Deployment Topology, Communication Map, Dependencies)
+3. Construct the proposed AFTER content as a verbatim replacement — same markdown structure, same heading levels as the BEFORE
+4. Capture the reason and assign a confidence level (HIGH / MEDIUM / LOW)
+
+For new infra units: prepare a proposed `infra/[new-unit-name].md` file using the Knowledge Priming Infra Unit template (Template I from `code_to_knowledge.skill.md`).
+
+For infra unit deletion: prepare a proposal to delete `infra/[old-unit-name].md` and remove its row from the index's `## Deployment & Infrastructure` table.
+
+For infra unit rename: prepare a proposal to rename the file and update all index references, including the `## Deployment & Infrastructure` table.
 
 ### Step 9 — Return the Drift Report to the Orchestrator
 
@@ -228,11 +277,13 @@ Changed Files by Category:
 
 Drift Classification:
 
-| Module | Drift Level | Reason |
+| Module / Infra Unit | Drift Level | Reason |
 |---|---|---|
 | `modules/[name].md` | D1 | [brief justification] |
 | `modules/[name].md` | D2 | [brief justification] |
 | `modules/[name].md` | D3 | [brief justification — FROZEN] |
+| `infra/[name].md` | D1 | [brief justification] *(Infrastructure facet only)* |
+| `infra/[name].md` | D2 | [brief justification] *(Infrastructure facet only)* |
 
 New Modules Detected:
 | Proposed Name | Inferred Responsibility | Evidence | Type |
@@ -251,7 +302,24 @@ Module Renames Detected:
 
 (or: No renames detected)
 
-Tech Spec Drift: [YES — fields affected: language / framework / etc] | [NO]
+New Infra Units Detected: *(Infrastructure facet only)*
+| Proposed Name | Inferred Responsibility | Evidence | Type |
+|---|---|---|---|
+| `[name]` | [single sentence] | [files supporting it] | REAL SUBMODULE | PSEUDO-MODULE |
+
+(or: No new infra units detected)
+
+Infra Unit Deletions Detected:
+- `infra/[name].md` — directory `[path]` no longer exists in code
+
+(or: No deletions detected)
+
+Infra Unit Renames Detected:
+- `infra/[old-name].md` → `infra/[new-name].md` — directory `[old-path]` renamed to `[new-path]`
+
+(or: No renames detected)
+
+Tech Spec Drift: [YES — fields affected: language / framework / IaC tool / etc] | [NO]
 
 ──────────────────────────────────────────────
 
@@ -267,7 +335,7 @@ Proposed Changes:
 For each proposed change, present one at a time. Wait for user response before the next.
 
 ```
-▶️ Change [X] of [Total] | modules/[module-name].md | Section: [Section Path]
+▶️ Change [X] of [Total] | modules/[module-name].md or infra/[unit-name].md | Section: [Section Path]
 
 Reason: [why this section needs updating — which committed code change drove it]
 Confidence: HIGH / MEDIUM / LOW
@@ -321,7 +389,27 @@ Actions:
   CANCEL        — stop remaining changes
 ```
 
-For deletions/renames (special case in Strict): similar approval card with appropriate Actions.
+For new infra units (special case in Strict, Infrastructure facet only):
+
+```
+▶️ New Infra Unit Proposal | [proposed-name]
+
+Inferred Responsibility: [single sentence]
+Type: REAL SUBMODULE | PSEUDO-MODULE
+Evidence: [files/folders that suggest this infra unit]
+
+Proposed file: infra/[proposed-name].md
+
+[Show the proposed Infra Unit File content in full — Template I]
+
+Actions:
+  APPROVE       — create the file as shown
+  RENAME [name] — create with a different name
+  REJECT        — discard this proposal
+  CANCEL        — stop remaining changes
+```
+
+For deletions/renames (special case in Strict, modules or infra units): similar approval card with appropriate Actions.
 
 #### Bulk Mode
 
@@ -349,13 +437,16 @@ For renames: rename the file and update all references in `index.md`.
 
 For Tech Spec updates: apply the before/after to the `## Tech Specification` block in `index.md`.
 
+**Infrastructure facet only:** for new infra units, create the file at `infra/[name].md` with the approved content (Template I). For deletions, delete the file at `infra/[name].md`. For renames, rename the file and update all references in `index.md`, including the `## Deployment & Infrastructure` table.
+
 ### Step 12 — Update `index.md`
 
 After all approved changes are applied:
 
 1. **Modules table:** add new modules, remove deleted ones, rename where applicable
-2. **Business Features Index:** update if new entry points or features were added/removed
-3. **Drift State block:**
+2. **Deployment & Infrastructure table** *(Infrastructure facet only)*: add new infra units, remove deleted ones, rename where applicable — create the section if this is the first infra unit ever generated for this repo, and ensure `## Layer Type` includes `Infrastructure`
+3. **Business Features Index:** update if new entry points or features were added/removed
+4. **Drift State block:**
 
 ```markdown
 ## Drift State
@@ -366,9 +457,12 @@ After all approved changes are applied:
 - [module-name]: D0 (resolved from D2 — flow rewritten, new module added)
 - [module-name]: D0 (no drift)
 - [module-name]: D3 FROZEN — [reason]
+- [infra-unit-name]: D0 (resolved from D1 — resource updated) *(Infrastructure facet only)*
+- [infra-unit-name]: D0 (resolved from D2 — topology rewritten, new infra unit added) *(Infrastructure facet only)*
+- [infra-unit-name]: D3 FROZEN — [reason] *(Infrastructure facet only)*
 ```
 
-4. **Context Baseline block:**
+5. **Context Baseline block:**
 
 ```markdown
 ## Context Baseline
@@ -378,7 +472,7 @@ After all approved changes are applied:
 - **Status:** Knowledge updated from `main` at the above commit.
 ```
 
-5. Update `## Tech Specification` if it was approved as drifted.
+6. Update `## Tech Specification` if it was approved as drifted.
 
 ### Step 13 — Return Result to Orchestrator
 
@@ -395,6 +489,9 @@ REPO_UPDATE_SUMMARY:
   New Modules Added: [list or "none"]
   Modules Deleted: [list or "none"]
   Modules Renamed: [list or "none"]
+  New Infra Units Added: [list or "none"] (Infrastructure facet only)
+  Infra Units Deleted: [list or "none"] (Infrastructure facet only)
+  Infra Units Renamed: [list or "none"] (Infrastructure facet only)
   Tech Spec Updated: YES | NO
   High Drift: YES | NO
 ```
@@ -410,8 +507,9 @@ You have completed successfully when:
 - Every approved new module has a generated file and an index entry
 - Every approved deletion has the file removed and index reference cleaned
 - Every approved rename has both the file and references updated
+- For repos with an Infrastructure facet: every approved new infra unit has a generated file (Template I) and a `## Deployment & Infrastructure` entry; approved infra unit deletions/renames are fully reflected in files and index — with the same rigor as modules
 - Tech Specification reflects committed dependency state if applicable
-- Drift State block in `index.md` records the final per-module levels
+- Drift State block in `index.md` records the final per-module and per-infra-unit levels
 - All file edits used the file edit tool with sufficient surrounding context for unique targeting
 
 ---
@@ -422,7 +520,8 @@ You have completed successfully when:
 - **Never trust a local `origin/main` ref without fetching first.** A stale ref produces false D0 (no-drift) results. Step 2's fetch is not optional, even if the orchestrator already fetched — fetching twice is harmless; skipping it once is not.
 - **No untracked file consideration.** Drift is committed-state only. Local edits are explicitly excluded.
 - **D3 means stop.** Return frozen status; do not propose changes; let the user resolve.
-- **One module at a time when possible.** Process modules in a deterministic order so checkpoints work cleanly.
-- **No invention.** If a code change cannot be confidently mapped to an existing module or a clearly new module, return it as Uncategorised in the report.
+- **One module or infra unit at a time when possible.** Process modules and infra units in a deterministic order so checkpoints work cleanly.
+- **No invention.** If a code change cannot be confidently mapped to an existing module/infra unit or a clearly new one, return it as Uncategorised in the report.
+- **Never treat infra units as second-class.** A repo with an Infrastructure facet gets the same drift rigor (D0-D3, before/after previews, approval gates) for its infra units as any other repo gets for its modules.
 - **Stay scoped.** Only read/write within `[knowledge-output-path]` and read the source repo (`repo-path`) for analysis. Do not touch anything else.
 - **Follow the review mode.** Strict = one change at a time. Bulk = all changes in one report.

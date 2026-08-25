@@ -16,7 +16,7 @@ You are read-only with respect to git. You never write to git history, the worki
 
 | Skill | Scope | Source File | Role |
 |---|---|---|---|
-| `repo_context_update` | Per-service | `repo_context_update.skill.md` | Compares baseline → origin/main, classifies drift (D0–D3 + new module detection), proposes before/after changes, applies approved updates |
+| `repo_context_update` | Per-service | `repo_context_update.skill.md` | Compares baseline → origin/main, classifies drift (D0–D3 + new module/infra-unit detection), proposes before/after changes, applies approved updates |
 | `service_context_update` | Team/Project-level | `service_context_update.skill.md` | Detects team/project-level drift (D4/D5) across services, updates cross-service feature files, tech stack aggregation, architectural narrative, team/project index |
 
 When invoking a skill, read its `.skill.md` file in full and follow its instructions exactly.
@@ -57,8 +57,8 @@ Six levels. Per-service skill assigns D0–D3 + new module flag. Team/Project-le
 |---|---|---|---|
 | **D0** | No Drift | Baseline == origin/main HEAD for this service. | Skip |
 | **D1** | Minor Drift | Small additive change (new field, updated validation). No responsibility shift. | Update flow text |
-| **D2** | Structural Drift | Flow changed, new entry point, new module added, or ownership area altered. | Update sections, may add module file |
-| **D3** | Boundary Drift (per-service) | Module overlap or ownership violation **within a single service's repo**. | **Freeze** until resolved |
+| **D2** | Structural Drift | Flow changed, new entry point, new module/infra unit added, or ownership area altered. | Update sections, may add module or infra unit file |
+| **D3** | Boundary Drift (per-service) | Module or infra unit overlap, or ownership violation, **within a single service's repo**. | **Freeze** until resolved |
 | **D4** | Cross-Service Minor Drift | Cross-service feature flow needs additive updates (new handoff, contract version bump). No ownership shift. | Update feature file |
 | **D5** | Cross-Service Major Drift | Cross-service ownership shifted, handoff broken, or conflict between services. | **Freeze** until resolved |
 
@@ -329,9 +329,9 @@ Pass these inputs to the skill:
 
 The skill performs:
 - Compares baseline → current `origin/main`
-- Categorises changed files by tech stack
-- Classifies drift per affected module (D0–D3)
-- Detects new modules added to the codebase
+- Categorises changed files by tech stack, including infra file patterns (Terraform/Helm/K8s/CDK/CloudFormation/Compose/Pulumi) when the service has an Infrastructure facet
+- Classifies drift per affected module and, for Infrastructure-facet services, per affected infra unit (D0–D3)
+- Detects new modules and new infra units added to the codebase
 - Proposes before/after changes
 - Returns a Drift Report
 
@@ -344,27 +344,28 @@ Surface the Drift Report based on review mode:
 
 **If a D3 (Boundary Drift) is found:**
 
-> "I detected a boundary drift in `[Service Name]` for module `[module-name]`. This means [explanation]. The update for this service is **frozen** until resolved.
+> "I detected a boundary drift in `[Service Name]` for module (or infra unit) `[name]`. This means [explanation]. The update for this service is **frozen** until resolved.
 >
 > Please review and resolve the conflict manually, then re-run `@update-context [Service Name]`. I'll continue with the other services."
 
 Mark this service as frozen in the checkpoint and move on.
 
-**If a new module was detected:**
+**If a new module or infra unit was detected:**
 
-The skill follows its own gate (Knowledge Priming-style approval) to confirm the new module with the user. User can confirm, rename, or reject. Treat new module finding as D2 (Structural Drift).
+The skill follows its own gate (Knowledge Priming-style approval) to confirm the new module or infra unit with the user. User can confirm, rename, or reject. Treat new module/infra unit findings as D2 (Structural Drift).
 
 #### 9C — Apply Approved Updates
 
 The skill writes approved changes to `[knowledge-repo-path]/[Service_Name]_Knowledge/`:
-- Updates affected module/feature files
-- Adds new module files if approved
-- Removes module files if module deletion approved
-- Renames module files if rename approved
+- Updates affected module/feature/infra unit files
+- Adds new module or infra unit files if approved
+- Removes module or infra unit files if deletion approved
+- Renames module or infra unit files if rename approved
 - Updates the service's `index.md`:
   - New baseline commit
   - Updated Drift State block
   - Updated Modules table (additions/removals/renames)
+  - Updated Deployment & Infrastructure table if the service has an Infrastructure facet (additions/removals/renames)
   - Updated Tech Specification if build/infra files changed
 
 #### 9D — Update Checkpoint & Move On
@@ -403,8 +404,8 @@ Pass these inputs:
 - Review mode
 
 The skill performs:
-- Reads updated per-service knowledge
-- Identifies cross-service features impacted by the changes
+- Reads updated per-service knowledge, including infra unit files for Infrastructure-facet services
+- Identifies cross-service features impacted by the changes, including features whose handoff transport (queue/topic/gateway) is provisioned by an infra unit that was added, removed, or renamed
 - Classifies cross-service drift (D4 or D5) per feature
 - Proposes before/after updates to:
   - `features/[feature-name].md` (cross-service flow files)
@@ -506,7 +507,7 @@ Please commit and push the updated context immediately to avoid compounding drif
 | Working Tree Notice | Step 6 | Dirty tree advisory | Informational, no wait |
 | Review Mode | Step 7 | Mode selection prompt | User picks 1 or 2 |
 | Per-Service Review | Step 9B, per service | Skill 1's report | APPROVE / EDIT / SKIP / CANCEL (Strict) or PROCEED / CANCEL (Bulk) |
-| New Module | Step 9B, if found | Module proposal | Confirm / rename / reject |
+| New Module / Infra Unit | Step 9B, if found | Module or infra unit proposal | Confirm / rename / reject |
 | Boundary Drift Freeze | Step 9B, if D3 | Conflict description | User resolves manually, re-runs |
 | Team/Project Review | Step 10C | Skill 2's report | Same as per-service review mode |
 | Cross-Service Major Freeze | Step 10C, if D5 | Conflict description | User resolves manually, re-runs |
