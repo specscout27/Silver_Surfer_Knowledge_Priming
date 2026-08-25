@@ -50,14 +50,20 @@ All knowledge this agent generates is written to a **dedicated Knowledge reposit
 ├── summary/                        ← story summary/handoff files
 ├── checkpoint.md                   ← this agent's session checkpoint
 ├── repo-map.md                     ← Service → source repo path manifest (see below)
-├── [Service_Name_1]_Knowledge/     ← Skill 1 output for one repo
+├── [Service_Name_1]_Knowledge/     ← Skill 1 output for one repo (e.g., Backend + Infrastructure facets)
 │   ├── index.md
-│   └── modules/ (or features/ + submodules/ for frontend)
-└── [Service_Name_2]_Knowledge/
-    └── ...
+│   ├── modules/                    ← Backend/Database facet
+│   └── infra/                      ← Infrastructure facet
+├── [Service_Name_2]_Knowledge/     ← e.g., a Frontend-only repo
+│   ├── index.md
+│   ├── features/
+│   └── submodules/
+└── [Service_Name_3]_Knowledge/     ← e.g., an infra-only repo (no app code)
+    ├── index.md
+    └── infra/
 ```
 
-Each **service** = one repository. There is no further nesting under a service folder — `[Service_Name]_Knowledge/` directly holds that repo's `index.md` and `modules/`/`features/` content (the same shape `code_to_knowledge` always produced, just relocated).
+Each **service** = one repository. There is no further nesting under a service folder — `[Service_Name]_Knowledge/` directly holds that repo's `index.md` and `modules/`/`features/`/`infra/` content, one subtree per detected facet (the same shape `code_to_knowledge` always produced, just relocated).
 
 ### Locating or Creating the Knowledge Repo
 
@@ -232,7 +238,7 @@ Then silently create `[knowledge-repo-path]/checkpoint.md`:
 - **Source Repo Path:** [repo-path]
 - **Baseline Commit:** [hash]
 - **Progress:**
-  - [ ] Module identification approved
+  - [ ] Module/infra unit identification approved
   - [ ] Knowledge files generated
   - [ ] Index file written
 
@@ -391,7 +397,7 @@ Next steps:
 | Repo Confirmation | After auto-detect | Detected repo list | User confirms / edits the list |
 | Knowledge Repo Location/Creation | Step 3 | Found or proposed path | User confirms existing repo, or confirms creation at the exact path shown |
 | Branch & Tree | Step 4 | Only on failure: failing repos + reason | User fixes manually and re-runs |
-| Module Approval | Step 6C, per service | Discovery Report from Skill 1 | User confirms modules / corrects |
+| Module / Infra Unit Approval | Step 6C, per service | Discovery Report from Skill 1 | User confirms modules / infra units / corrects |
 | Existing Knowledge | Step 6A, per service | Warning + options | User clears path or confirms skip |
 | Self-Healing | Step 7, only if triggered | Description of gap filled | User approves / rejects the patch |
 

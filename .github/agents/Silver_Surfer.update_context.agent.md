@@ -51,7 +51,7 @@ When invoking a skill, read its `.skill.md` file in full and follow its instruct
 
 ## Drift Classification System
 
-Six levels. Per-service skill assigns D0–D3 + new module flag. Team/Project-level skill assigns D4/D5.
+Six levels. Per-service skill assigns D0–D3 + new module/infra-unit flag. Team/Project-level skill assigns D4/D5.
 
 | Level | Name | Definition | Default Action |
 |---|---|---|---|
