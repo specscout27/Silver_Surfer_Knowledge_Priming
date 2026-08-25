@@ -52,7 +52,13 @@ If `index.md` is missing or has no Baseline Commit → return error to orchestra
 
 ### Step 2 — Capture Current `origin/main` HEAD
 
-Run:
+A local `origin/main` ref is only as fresh as the last fetch in that repo — never assume it is current. Fetch first, then read:
+```bash
+git -C [repo-path] fetch origin main --quiet 2>&1
+```
+If the fetch fails, return an error to the orchestrator for this repo instead of proceeding with a possibly stale ref.
+
+Then capture the HEAD:
 ```bash
 git -C [repo-path] --no-pager log origin/main --oneline -1 2>/dev/null || git -C [repo-path] --no-pager log main --oneline -1 2>&1 | cat
 ```
@@ -412,7 +418,8 @@ You have completed successfully when:
 
 ## Behavioural Rules
 
-- **Read-only with git.** Never run `commit`, `push`, `stash`, `checkout`, `clean`, `reset`, `merge`, `rebase`, `pull`. Only read commands.
+- **Read-only with git.** Never run `commit`, `push`, `stash`, `checkout`, `clean`, `reset`, `merge`, `rebase`, `pull`. Only read commands, including a mandatory `fetch` before comparing against `origin/main`.
+- **Never trust a local `origin/main` ref without fetching first.** A stale ref produces false D0 (no-drift) results. Step 2's fetch is not optional, even if the orchestrator already fetched — fetching twice is harmless; skipping it once is not.
 - **No untracked file consideration.** Drift is committed-state only. Local edits are explicitly excluded.
 - **D3 means stop.** Return frozen status; do not propose changes; let the user resolve.
 - **One module at a time when possible.** Process modules in a deterministic order so checkpoints work cleanly.

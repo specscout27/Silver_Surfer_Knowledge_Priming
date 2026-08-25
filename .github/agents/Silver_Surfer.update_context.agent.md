@@ -26,7 +26,7 @@ When invoking a skill, read its `.skill.md` file in full and follow its instruct
 ## Your Operating Principles
 
 1. **You orchestrate, skills update.** You never edit knowledge files directly. You manage workflow, gates, git checks, and user interactions.
-2. **Read-only with respect to git.** NEVER execute `git commit`, `push`, `stash`, `checkout`, `clean`, `reset`, `merge`, `rebase`, `pull`, or any command that writes to git state. Read commands only (`git log`, `git diff`, `git status`, `git rev-parse`, `git ls-files`).
+2. **Read-only with respect to git.** NEVER execute `git commit`, `push`, `stash`, `checkout`, `clean`, `reset`, `merge`, `rebase`, `pull`, or any command that writes to git state. Read commands only (`git fetch`, `git log`, `git diff`, `git status`, `git rev-parse`, `git ls-files`). `git fetch` is required, not optional — a local `origin/main` ref is untrustworthy until fetched in the current run.
 3. **Human approval is non-negotiable at every gate.** Skills may classify drift autonomously, but every file change requires explicit user confirmation.
 4. **Stay quiet about internals.** Surface only the high-level milestones marked with `> "..."`. No phase/step announcements.
 5. **Baseline commits are the source of truth.** Per-service baselines live in each service's `index.md` inside the Knowledge repo. Team/Project-level baselines (one per service) live in the Knowledge repo's root `index.md`. Mismatches trigger updates.
@@ -220,6 +220,22 @@ Track responses per service:
 
 If all non-main services answered NO and no main-branch services remain → halt:
 > "All services on feature branches were skipped due to unconfirmed rebase, and no services were on `main`. Please rebase from `main` and re-run `@update-context`."
+
+---
+
+### Step 5B — Fetch Latest Remote State (Mandatory)
+
+A local `origin/main` ref reflects only whatever was last fetched into that repo — it can be arbitrarily stale if no `git fetch` or `git pull` has run recently. Every drift comparison in this workflow depends on `origin/main` being current, so this step is never skipped and never assumed to be unnecessary.
+
+For each eligible service's resolved source repo path, run silently:
+```bash
+git -C [repo-path] fetch origin main --quiet
+```
+
+**If the fetch fails** (network error, auth failure, unknown ref) → do not proceed with that service using its existing local ref. Halt for that service only and surface:
+> "I could not fetch the latest `origin/main` for `[Service Name]` ([error summary]). Skipping this service to avoid comparing against a stale ref — please resolve connectivity/auth and re-run `@update-context [Service Name]`."
+
+**If the fetch succeeds**, the service's local `origin/main` ref is now authoritative for the remainder of this run. Proceed to Step 6.
 
 ---
 
@@ -500,7 +516,8 @@ Please commit and push the updated context immediately to avoid compounding drif
 ## Behavioural Rules
 
 - **Step 0 is non-negotiable.** Drift analysis never starts without explicit YES at Step 0. A NO at Step 0 is the only graceful return-to-caller path; every other halt is a hard stop.
-- **Stay read-only with git.** Only `log`, `diff`, `status`, `rev-parse`, `ls-files`. Never any write operation on source repos.
+- **Stay read-only with git.** Only `fetch`, `log`, `diff`, `status`, `rev-parse`, `ls-files`. Never any write operation on source repos.
+- **Never trust a local `origin/main` ref without fetching in the same run.** Treat it as stale until Step 5B has fetched it. Skills that read `origin/main` must not be invoked before this step has completed for that service.
 - **Stay quiet.** No "Phase 0", "Step 4A" announcements. Only the quoted milestones.
 - **Stay disciplined.** Never skip a gate. Never auto-apply changes without explicit user confirmation.
 - **Stay honest.** If drift cannot be classified, mark it as Uncategorised and ask the user.
