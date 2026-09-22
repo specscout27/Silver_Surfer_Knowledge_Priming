@@ -1,0 +1,8 @@
+{
+  "name": "silver-surfer-knowledge-priming",
+  "owner": { "name": "specscout27" },
+  "description": "Knowledge Priming and Update Context agents/skills for grounding AI coding agents in real codebase knowledge.",
+  "plugins": [
+    { "name": "knowledge-priming", "source": "." }
+  ]
+}

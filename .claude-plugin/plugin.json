@@ -7,7 +7,5 @@
     "name": "specscout27"
   },
   "homepage": "https://github.com/specscout27/Silver_Surfer_Knowledge_Priming",
-  "keywords": ["knowledge", "context", "codebase", "documentation", "multi-repo"],
-  "agents": "./agents",
-  "skills": "./skills"
+  "keywords": ["knowledge", "context", "codebase", "documentation", "multi-repo"]
 }
