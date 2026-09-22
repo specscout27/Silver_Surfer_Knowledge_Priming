@@ -1,0 +1,13 @@
+{
+  "name": "knowledge-priming",
+  "displayName": "Knowledge Priming",
+  "description": "Generates and maintains structured, up-to-date knowledge about your codebase(s) so AI agents can work grounded in real context instead of re-reading entire repositories.",
+  "version": "0.1.0",
+  "author": {
+    "name": "specscout27"
+  },
+  "homepage": "https://github.com/specscout27/Silver_Surfer_Knowledge_Priming",
+  "keywords": ["knowledge", "context", "codebase", "documentation", "multi-repo"],
+  "agents": "./agents",
+  "skills": "./skills"
+}
