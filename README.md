@@ -90,7 +90,7 @@ Just ask in plain language, e.g.:
 | Knowledge Priming | `.claude/agents/knowledge_priming.md` |
 | Update Context | `.claude/agents/update_context.md` |
 
-A Claude Code plugin wrapping these as a slash command (`/knowledge-priming`) and native subagents is planned — see Roadmap below. Until then, place the files at the paths above per the Tool Placement Reference table in each agent file.
+This repo is also a Claude Code plugin — install it directly and get `knowledge-priming` / `update-context` as human-only skills plus native subagents, without copying any files by hand. See "Installing via CLI or Plugin" below.
 
 ### In Cursor
 
@@ -151,10 +151,27 @@ If a brand-new repo has appeared in the workspace that isn't in `repo-map.md` ye
 
 ---
 
+## Installing via CLI or Plugin
+
+**Any tool (Copilot, Claude Code, Cursor) via the CLI:**
+
+```
+npx github:specscout27/Silver_Surfer_Knowledge_Priming init --target claude|cursor|copilot|all
+```
+
+This vendors the agent/skill content into `.knowledge-priming/` in your project, then writes a thin wrapper file per tool at the exact paths each agent's own "Tool Placement Reference" table specifies — no manual copying. Re-run it later to refresh the vendored copy.
+
+**Claude Code specifically, as a plugin** (no vendoring — reads this repo directly):
+
+```
+/plugin marketplace add specscout27/Silver_Surfer_Knowledge_Priming
+/plugin install knowledge-priming@Silver_Surfer_Knowledge_Priming
+```
+
+Gives you the `knowledge-priming` and `update-context` skills (human-invoked only — they never auto-fire) plus native subagents of the same names, and the auto-invocable `knowledge-query` skill any custom Claude Code agent can pick up to query the Knowledge repo without reading any of this framework's own docs first.
+
+---
+
 ## Roadmap
 
-Planned, not yet built:
-- **Claude Code plugin** — a `/knowledge-priming` slash command and native subagents wrapping the two agents above, so any Claude Code project can install this repo as a plugin rather than copying files by hand.
-- **Portable consumption skill** — a self-contained, framework-vocabulary-free rewrite of `smart_context_loading` that any custom agent (built with any framework — Claude Code, spec-kit, or otherwise) can attach to learn how to query this Knowledge repo, without needing to read the rest of this framework first.
-- **CLI installer** — a `specify`-style scaffolding tool (following the pattern of GitHub's spec-kit) that drops the right agent/command files into whichever tool convention you point it at.
-- **MCP server** — a thin, deterministic wrapper exposing `prime` / `update-context` / `query` as callable tools for any MCP-capable agent.
+- **MCP server** — a thin, deterministic wrapper exposing `prime` / `update-context` / `query` as callable tools for any MCP-capable agent. Not currently needed; revisit if programmatic/non-file access becomes necessary.

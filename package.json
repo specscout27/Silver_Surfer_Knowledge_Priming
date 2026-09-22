@@ -1,0 +1,17 @@
+{
+  "name": "knowledge-priming",
+  "version": "0.1.0",
+  "description": "Scaffolds the Knowledge Priming and Update Context agents into your project for GitHub Copilot, Claude Code, or Cursor.",
+  "type": "module",
+  "bin": {
+    "knowledge-priming": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    ".github"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
